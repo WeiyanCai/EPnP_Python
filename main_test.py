@@ -2,7 +2,7 @@
 """
 Created on Sun Nov 05 19:57:55 2017
 
-@author: weiya
+@author: Weiyan Cai
 """
 
 import scipy.io as sio
