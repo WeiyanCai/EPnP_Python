@@ -37,6 +37,7 @@ class EPnPTest(object):
         fig = plt.figure()
         fig.set_size_inches(18.5, 13)
         axes = fig.add_subplot(1, 1, 1)
+        plt.plot(0, 0, 'ok')
         for p in self.Ximg_pix_true:
             plt.plot(p[0], p[1], '.r')
         for p in self.Ximg_pix:
@@ -53,14 +54,15 @@ class EPnPTest(object):
         print "Error of EPnP: ", error
         
     def apply_EPnP_Gauss(self):
-        self.epnp.efficient_pnp_gauss(np.array(self.Xworld), np.array(self.Ximg_pix), self.A)
-        #self.plot_3d_reconstruction("EPnP (Gauss)", Xc)
-        #print "Error of EPnP - Gauss Optimization: ", error
+        error, Rt, Cc, Xc = self.epnp.efficient_pnp_gauss(np.array(self.Xworld), np.array(self.Ximg_pix), self.A)
+        self.plot_3d_reconstruction("EPnP (Gauss Newton)", Xc)
+        print "Error of EPnP (Gauss Newton Optimization): ", error
         
     def plot_3d_reconstruction(self, method, Xc):
         fig = plt.figure()
         fig.set_size_inches(18.5, 13)
         axes = fig.add_subplot(1, 1, 1)
+        plt.plot(0, 0, 'ok')
         for p in self.Xcam:
             plt.plot(p[0], p[1], '.r')
         for p in Xc:
@@ -75,6 +77,6 @@ class EPnPTest(object):
 if __name__ == "__main__":
     ET = EPnPTest()
     ET.load_test_data()
-    #ET.draw_input_noisy_data()
-    #ET.apply_EPnP()
+    ET.draw_input_noisy_data()
+    ET.apply_EPnP()
     ET.apply_EPnP_Gauss()
