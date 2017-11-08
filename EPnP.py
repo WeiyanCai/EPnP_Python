@@ -17,46 +17,6 @@ THRESHOLD_REPROJECTION_ERROR = 10
 class EPnP(object):
     def __init__(self):
         self.Cw = self.define_control_points()
-    
-    def define_control_points(self):
-        return np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, 0]])
-        
-    def compute_alphas(self, Xworld):
-        X = np.array(Xworld).transpose()[0]
-        X = np.concatenate((X, np.array([np.ones((self.n))])), axis=0)
-        C = self.Cw.transpose()
-        C = np.concatenate((C, np.array([np.ones((4))])), axis=0)
-        
-        Alpha = np.matmul(np.linalg.inv(C), X)
-        Alpha = Alpha.transpose()
-        
-        return Alpha
-    
-    def compute_M_ver2(self, U):
-        A, Alpha = self.A, self.Alpha
-        fu, fv, u0, v0 = A[0, 0], A[1, 1], A[0, 2], A[1, 2] 
-        M = []
-        U = np.array(U)
-        for i in range(self.n):
-            M.append([Alpha[i, 0] * fu, 0, Alpha[i, 0] * (u0 - U[i, 0]), 
-                      Alpha[i, 1] * fu, 0, Alpha[i, 1] * (u0 - U[i, 0]),
-                      Alpha[i, 2] * fu, 0, Alpha[i, 2] * (u0 - U[i, 0]),
-                      Alpha[i, 3] * fu, 0, Alpha[i, 3] * (u0 - U[i, 0])])
-            M.append([0, Alpha[i, 0] * fv, Alpha[i, 0] * (v0 - U[i, 1]), 
-                      0, Alpha[i, 1] * fv, Alpha[i, 1] * (v0 - U[i, 1]),
-                      0, Alpha[i, 2] * fv, Alpha[i, 2] * (v0 - U[i, 1]),
-                      0, Alpha[i, 3] * fv, Alpha[i, 3] * (v0 - U[i, 1])])
-    
-        return M
-    
-    def kernel_noise(self, M, dimker):
-        M = np.array(M)
-        MT_M = np.matmul(M.transpose(), M)
-        W, V = np.linalg.eig(MT_M)
-        idx = W.argsort()
-        K = V[:, idx[:dimker]]
-        
-        return K 
         
     def handle_general_EPnP(self, Xworld, Ximg_pix, A):
         self.n = len(Ximg_pix)
@@ -102,7 +62,7 @@ class EPnP(object):
         
     def efficient_pnp_gauss(self, Xworld, Ximg_pix, A):
         best, error_best, Rt_best, Cc_best, Xc_best, sc_best, kernel_best, beta_best, K = self.handle_general_EPnP(Xworld, Ximg_pix, A)
-        
+ 
         if best == 0:
             Betas = [0, 0, 0, beta_best[0]]
         elif best == 1:
@@ -113,15 +73,75 @@ class EPnP(object):
         Beta0 = sc_best * np.array(Betas)   
         Kernel = np.array([K.T[3], K.T[2], K.T[1], K.T[0]]).T
         
-        #Xc_opt, R_opt, T_opt, err_opt, iterNum = 
-        self.optimize_betas_gauss_newton(Kernel, Beta0, Xworld, Ximg_pix)
+        Xc_opt, Cc_opt, RT_opt, err_opt = self.optimize_betas_gauss_newton(Kernel, Beta0, Xworld, Ximg_pix)
+        
+        if err_opt < error_best:
+            error_best, Rt_best, Cc_best, Xc_best = err_opt, RT_opt, Cc_opt, Xc_opt
+            
+        return error_best, Rt_best, Cc_best, Xc_best
         
     def optimize_betas_gauss_newton(self, Kernel, Beta0, Xw, U):
         n = len(Beta0)
-        gOpt.gauss_newton(Kernel, self.Cw, Beta0)
-              
-        #return Xc_opt, R_opt, T_opt, err_opt, iterNum
+        Beta_opt, error_opt = gOpt.gauss_newton(Kernel, self.Cw, Beta0)
+        X = np.zeros((12))
+        for i in range(n):
+            X = X + Beta_opt[i] * Kernel[:, i]
+        
+        Cc = []
+        for i in range(4):
+            Cc.append(X[(3 * i) : (3 * (i + 1))])
+        
+        Cc = np.array(Cc).reshape((4, 3))
+        s_Cw = gOpt.sign_determinant(self.Cw)
+        s_Cc = gOpt.sign_determinant(Cc)
+        Cc = Cc * s_Cw * s_Cc
+        
+        Xc_opt = np.matmul(self.Alpha, Cc)
+        R_opt, T_opt = self.getRotT(Xw, Xc_opt)
+        RT_opt = np.concatenate((R_opt.reshape((3, 3)), T_opt.reshape((3, 1))), axis=1)
+        err_opt = self.reprojection_error_usingRT(Xw, U, RT_opt)
+        
+        return Xc_opt, Cc, RT_opt, err_opt
 
+    def define_control_points(self):
+        return np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, 0]])
+        
+    def compute_alphas(self, Xworld):
+        X = np.array(Xworld).transpose()[0]
+        X = np.concatenate((X, np.array([np.ones((self.n))])), axis=0)
+        C = self.Cw.transpose()
+        C = np.concatenate((C, np.array([np.ones((4))])), axis=0)
+        
+        Alpha = np.matmul(np.linalg.inv(C), X)
+        Alpha = Alpha.transpose()
+        
+        return Alpha
+    
+    def compute_M_ver2(self, U):
+        A, Alpha = self.A, self.Alpha
+        fu, fv, u0, v0 = A[0, 0], A[1, 1], A[0, 2], A[1, 2] 
+        M = []
+        U = np.array(U)
+        for i in range(self.n):
+            M.append([Alpha[i, 0] * fu, 0, Alpha[i, 0] * (u0 - U[i, 0]), 
+                      Alpha[i, 1] * fu, 0, Alpha[i, 1] * (u0 - U[i, 0]),
+                      Alpha[i, 2] * fu, 0, Alpha[i, 2] * (u0 - U[i, 0]),
+                      Alpha[i, 3] * fu, 0, Alpha[i, 3] * (u0 - U[i, 0])])
+            M.append([0, Alpha[i, 0] * fv, Alpha[i, 0] * (v0 - U[i, 1]), 
+                      0, Alpha[i, 1] * fv, Alpha[i, 1] * (v0 - U[i, 1]),
+                      0, Alpha[i, 2] * fv, Alpha[i, 2] * (v0 - U[i, 1]),
+                      0, Alpha[i, 3] * fv, Alpha[i, 3] * (v0 - U[i, 1])])
+    
+        return M
+    
+    def kernel_noise(self, M, dimker):
+        M = np.array(M)
+        MT_M = np.matmul(M.transpose(), M)
+        W, V = np.linalg.eig(MT_M)
+        idx = W.argsort()
+        K = V[:, idx[:dimker]]
+        
+        return K 
     
     def dim_kerM(self, dimker, Km, Xworld, Ximg_pix):
         if dimker == 1:
