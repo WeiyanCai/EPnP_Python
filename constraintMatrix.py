@@ -7,6 +7,7 @@ Created on Mon Nov 06 22:24:16 2017
 
 import numpy as np
 
+
 def define_distances_btw_control_points(C):
     d12 = (C[0, 0] - C[1, 0]) ** 2 + (C[0, 1] - C[1, 1]) ** 2 + (C[0, 2] - C[1, 2]) ** 2
     d13 = (C[0, 0] - C[2, 0]) ** 2 + (C[0, 1] - C[2, 1]) ** 2 + (C[0, 2] - C[2, 2]) ** 2
