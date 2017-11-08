@@ -18,6 +18,7 @@ $ git clone git@github.com:WeiyanCai/EPnP_Python.git
 
 ## Running the test
 ```
+$ cd EPnP_Python
 $ python main_test.py
 ```
 
