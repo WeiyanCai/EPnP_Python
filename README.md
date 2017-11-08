@@ -2,8 +2,11 @@
 
 ## Description
 
-Python Code for the Efficient Perspective-n-Point Camera Pose Estimation Algorithm 
-(Described in [CVLAB: EPnP Resources](https://cvlab.epfl.ch/EPnP/index.php))
+Python Code for the Efficient Perspective-n-Point Camera Pose Estimation Algorithm.
+
+The original algorithm (Matlab and C++) was developed by Vincent Lepetit, Francesc Moreno-Noguer and Pascal Fua.
+
+For more details please refer to the resource link: [CVLAB: EPnP](https://cvlab.epfl.ch/EPnP/index.php).
 
 ## Installing
 ```
@@ -18,6 +21,6 @@ $ git clone git@github.com:WeiyanCai/EPnP_Python.git
 $ python main_test.py
 ```
 
-## Authors
+## Author
 
 * **Weiyan Cai** - [GitHub](https://github.com/WeiyanCai)
