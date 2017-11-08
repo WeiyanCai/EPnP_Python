@@ -23,54 +23,58 @@ class EPnP(object):
         self.A = A
         self.Alpha = self.compute_alphas(Xworld)
         M = self.compute_M_ver2(Ximg_pix)
-        K = self.kernel_noise(M, 4)
+        self.K = self.kernel_noise(M, 4)
         
         errors = []
-        RT_sol, Cc_sol, Xc_sol, sc_sol, kernel_sol, beta_sol = [], [], [], [], [], []
+        RT_sol, Cc_sol, Xc_sol, sc_sol, beta_sol = [], [], [], [], []
+
+        K = self.K
+        kernel = np.array([K.T[3], K.T[2], K.T[1], K.T[0]]).T
+        L6_10 = cM.compute_L6_10(kernel)
         
         for i in range(2):
-            error, RT, Cc, Xc, sc, kernel, beta = self.dim_kerM(i + 1, K[:, :(i + 1)], Xworld, Ximg_pix)
+            error, RT, Cc, Xc, sc, beta = self.dim_kerM(i + 1, K[:, :(i + 1)], Xworld, Ximg_pix, L6_10)
             errors.append(error)
             RT_sol.append(RT)
             Cc_sol.append(Cc)
             Xc_sol.append(Xc)
             sc_sol.append(sc)
-            kernel_sol.append(kernel)
             beta_sol.append(beta)
             
         if min(errors) > THRESHOLD_REPROJECTION_ERROR:
-            error, RT, Cc, Xc, sc, kernel, beta = self.dim_kerM(3, K[:, :3], Xworld, Ximg_pix)
+            error, RT, Cc, Xc, sc, beta = self.dim_kerM(3, K[:, :3], Xworld, Ximg_pix, L6_10)
             errors.append(error)
             RT_sol.append(RT)
             Cc_sol.append(Cc)
             Xc_sol.append(Xc)
             sc_sol.append(sc)
-            kernel_sol.append(kernel)
             beta_sol.append(beta)
         
         best = np.array(errors).argsort()[0]
         error_best = errors[best]
         Rt_best, Cc_best, Xc_best = RT_sol[best], Cc_sol[best], Xc_sol[best]
-        sc_best, kernel_best, beta_best = sc_sol[best], kernel_sol[best], beta_sol[best]
+        sc_best, beta_best = sc_sol[best], beta_sol[best]
         
-        return best, error_best, Rt_best, Cc_best, Xc_best, sc_best, kernel_best, beta_best, K
+        return error_best, Rt_best, Cc_best, Xc_best, sc_best, beta_best
     
     def efficient_pnp(self, Xworld, Ximg_pix, A):
-        _, error_best, Rt_best, Cc_best, Xc_best, _, _, _, _ = self.handle_general_EPnP(Xworld, Ximg_pix, A)
+        error_best, Rt_best, Cc_best, Xc_best, _, _ = self.handle_general_EPnP(Xworld, Ximg_pix, A)
         
         return error_best, Rt_best, Cc_best, Xc_best
         
     def efficient_pnp_gauss(self, Xworld, Ximg_pix, A):
-        best, error_best, Rt_best, Cc_best, Xc_best, sc_best, kernel_best, beta_best, K = self.handle_general_EPnP(Xworld, Ximg_pix, A)
+        error_best, Rt_best, Cc_best, Xc_best, sc_best, beta_best = self.handle_general_EPnP(Xworld, Ximg_pix, A)
  
-        if best == 0:
+        best = len(beta_best)
+        if best == 1:
             Betas = [0, 0, 0, beta_best[0]]
-        elif best == 1:
+        elif best == 2:
             Betas = [0, 0, beta_best[0], beta_best[1]]
         else:
             Betas = [0, beta_best[0], beta_best[1], beta_best[2]]
             
         Beta0 = sc_best * np.array(Betas)   
+        K = self.K
         Kernel = np.array([K.T[3], K.T[2], K.T[1], K.T[0]]).T
         
         Xc_opt, Cc_opt, RT_opt, err_opt = self.optimize_betas_gauss_newton(Kernel, Beta0, Xworld, Ximg_pix)
@@ -143,28 +147,26 @@ class EPnP(object):
         
         return K 
     
-    def dim_kerM(self, dimker, Km, Xworld, Ximg_pix):
+    def dim_kerM(self, dimker, Km, Xworld, Ximg_pix, L6_10):
         if dimker == 1:
             X1 = Km
             Cc, Xc, sc = self.compute_norm_sign_scaling_factor(X1, Xworld)
-            kernel = [X1]
             beta = [1]
            
         if dimker == 2:
-            L = cM.L_2param_6eq_3unk(Km.T)
-            dsp = cM.define_distances_btw_control_points(self.Cw)
+            L = cM.compute_L6_3(L6_10)
+            dsp = cM.compute_rho(self.Cw)
             betas = np.matmul(np.linalg.inv(np.matmul(L.T, L)), np.matmul(L.T, dsp))
             beta1 = math.sqrt(abs(betas[0]))
             beta2 = math.sqrt(abs(betas[2])) * np.sign(betas[1]) * np.sign(betas[0])
 
             X2 = beta1 * Km.T[1] + beta2 * Km.T[0]
             Cc, Xc, sc = self.compute_norm_sign_scaling_factor(X2, Xworld)
-            kernel = [Km.T[1], Km.T[0]]
             beta = [beta1, beta2]
         
         if dimker == 3:
-            L = cM.L_2param_6eq_6unk(Km.T)
-            dsp = cM.define_distances_btw_control_points(self.Cw)
+            L = cM.compute_L6_6(L6_10)
+            dsp = cM.compute_rho(self.Cw)
             betas = np.matmul(np.linalg.inv(L), dsp)
             beta1 = math.sqrt(abs(betas[0]))
             beta2 = math.sqrt(abs(betas[3])) * np.sign(betas[1]) * np.sign(betas[0])
@@ -172,14 +174,13 @@ class EPnP(object):
 
             X3 = beta1 * Km.T[2] + beta2 * Km.T[1] + beta3 * Km.T[0]
             Cc, Xc, sc = self.compute_norm_sign_scaling_factor(X3, Xworld)
-            kernel = [Km.T[2], Km.T[1], Km.T[0]]
             beta = [beta1, beta2, beta3]
             
         R, T = self.getRotT(Xworld, Xc)
         RT = np.concatenate((R.reshape((3, 3)), T.reshape((3, 1))), axis=1)
         error = self.reprojection_error_usingRT(Xworld, Ximg_pix, RT)
         
-        return error, RT, Cc, Xc, sc, kernel, beta
+        return error, RT, Cc, Xc, sc, beta
             
     def compute_norm_sign_scaling_factor(self, X, Xworld):
         Cc = []
@@ -244,6 +245,7 @@ class EPnP(object):
         Urep[:, 1] = Urep[:, 1] / Urep[:, 2]
         err = np.sqrt((U[:, 0] - Urep[:, 0].reshape((self.n, 1))) ** 2 + (U[:, 1] - Urep[:, 1].reshape((self.n, 1))) ** 2)
         err = np.sum(err, axis=0) / self.n
+
         return err[0]
         
 
