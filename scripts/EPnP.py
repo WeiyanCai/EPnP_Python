@@ -26,25 +26,25 @@ class EPnP(object):
         self.K = self.kernel_noise(M, 4)
         
         errors = []
-        RT_sol, Cc_sol, Xc_sol, sc_sol, beta_sol = [], [], [], [], []
+        Rt_sol, Cc_sol, Xc_sol, sc_sol, beta_sol = [], [], [], [], []
 
         K = self.K
         kernel = np.array([K.T[3], K.T[2], K.T[1], K.T[0]]).T
         L6_10 = cM.compute_L6_10(kernel)
         
         for i in range(2):
-            error, RT, Cc, Xc, sc, beta = self.dim_kerM(i + 1, K[:, :(i + 1)], Xworld, Ximg_pix, L6_10)
+            error, Rt, Cc, Xc, sc, beta = self.dim_kerM(i + 1, K[:, :(i + 1)], Xworld, Ximg_pix, L6_10)
             errors.append(error)
-            RT_sol.append(RT)
+            Rt_sol.append(Rt)
             Cc_sol.append(Cc)
             Xc_sol.append(Xc)
             sc_sol.append(sc)
             beta_sol.append(beta)
             
         if min(errors) > THRESHOLD_REPROJECTION_ERROR:
-            error, RT, Cc, Xc, sc, beta = self.dim_kerM(3, K[:, :3], Xworld, Ximg_pix, L6_10)
+            error, Rt, Cc, Xc, sc, beta = self.dim_kerM(3, K[:, :3], Xworld, Ximg_pix, L6_10)
             errors.append(error)
-            RT_sol.append(RT)
+            Rt_sol.append(Rt)
             Cc_sol.append(Cc)
             Xc_sol.append(Xc)
             sc_sol.append(sc)
@@ -52,7 +52,7 @@ class EPnP(object):
         
         best = np.array(errors).argsort()[0]
         error_best = errors[best]
-        Rt_best, Cc_best, Xc_best = RT_sol[best], Cc_sol[best], Xc_sol[best]
+        Rt_best, Cc_best, Xc_best = Rt_sol[best], Cc_sol[best], Xc_sol[best]
         sc_best, beta_best = sc_sol[best], beta_sol[best]
         
         return error_best, Rt_best, Cc_best, Xc_best, sc_best, beta_best
@@ -77,10 +77,10 @@ class EPnP(object):
         K = self.K
         Kernel = np.array([K.T[3], K.T[2], K.T[1], K.T[0]]).T
         
-        Xc_opt, Cc_opt, RT_opt, err_opt = self.optimize_betas_gauss_newton(Kernel, Beta0, Xworld, Ximg_pix)
+        Xc_opt, Cc_opt, Rt_opt, err_opt = self.optimize_betas_gauss_newton(Kernel, Beta0, Xworld, Ximg_pix)
         
         if err_opt < error_best:
-            error_best, Rt_best, Cc_best, Xc_best = err_opt, RT_opt, Cc_opt, Xc_opt
+            error_best, Rt_best, Cc_best, Xc_best = err_opt, Rt_opt, Cc_opt, Xc_opt
             
         return error_best, Rt_best, Cc_best, Xc_best
         
@@ -102,10 +102,10 @@ class EPnP(object):
         
         Xc_opt = np.matmul(self.Alpha, Cc)
         R_opt, T_opt = self.getRotT(Xw, Xc_opt)
-        RT_opt = np.concatenate((R_opt.reshape((3, 3)), T_opt.reshape((3, 1))), axis=1)
+        Rt_opt = np.concatenate((R_opt.reshape((3, 3)), T_opt.reshape((3, 1))), axis=1)
         err_opt = self.reprojection_error_usingRT(Xw, U, RT_opt)
         
-        return Xc_opt, Cc, RT_opt, err_opt
+        return Xc_opt, Cc, Rt_opt, err_opt
 
     def define_control_points(self):
         return np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, 0]])
@@ -140,8 +140,8 @@ class EPnP(object):
     
     def kernel_noise(self, M, dimker):
         M = np.array(M)
-        MT_M = np.matmul(M.transpose(), M)
-        W, V = np.linalg.eig(MT_M)
+        M_T_M = np.matmul(M.transpose(), M)
+        W, V = np.linalg.eig(M_T_M)
         idx = W.argsort()
         K = V[:, idx[:dimker]]
         
@@ -177,10 +177,10 @@ class EPnP(object):
             beta = [beta1, beta2, beta3]
             
         R, T = self.getRotT(Xworld, Xc)
-        RT = np.concatenate((R.reshape((3, 3)), T.reshape((3, 1))), axis=1)
-        error = self.reprojection_error_usingRT(Xworld, Ximg_pix, RT)
+        Rt = np.concatenate((R.reshape((3, 3)), T.reshape((3, 1))), axis=1)
+        error = self.reprojection_error_usingRT(Xworld, Ximg_pix, Rt)
         
-        return error, RT, Cc, Xc, sc, beta
+        return error, Rt, Cc, Xc, sc, beta
             
     def compute_norm_sign_scaling_factor(self, X, Xworld):
         Cc = []

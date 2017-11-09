@@ -8,6 +8,7 @@ Created on Tue Nov 07 16:11:15 2017
 import numpy as np
 import constraintMatrix as cM
 
+
 def gauss_newton(Kernel, Cw, Beta0):
     L = cM.compute_L6_10(Kernel)
     rho = cM.compute_rho(Cw)
