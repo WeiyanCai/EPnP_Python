@@ -5,6 +5,7 @@ Created on Sun Nov 05 19:57:55 2017
 @author: Weiyan Cai
 """
 
+import os
 import scipy.io as sio
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,7 +18,7 @@ class EPnPTest(object):
         self.epnp = EPnP.EPnP()
 
     def load_test_data(self):        
-        data = sio.loadmat('input/input_data_noise.mat')
+        data = sio.loadmat(os.getcwd() + '/input/input_data_noise.mat')
 
         self.A = data['A']
         self.Rt = data['Rt']
@@ -45,7 +46,7 @@ class EPnPTest(object):
         axes.set_title('Noise in Image Plane', fontsize=18)
         plt.grid()
         
-        fig.savefig('output/Noise_in_Image_Plane.png', dpi=100)
+        fig.savefig(os.getcwd() + '/output/Noise_in_Image_Plane.png', dpi=100)
         plt.show()
         
     def apply_EPnP(self):
@@ -70,7 +71,7 @@ class EPnPTest(object):
         axes.set_title(method + ' - Reprojection Error', fontsize=18)
         plt.grid()
         
-        fig.savefig("output/" + method + '_Reprojection_Error.png', dpi=100)
+        fig.savefig(os.getcwd() + "/output/" + method + '_Reprojection_Error.png', dpi=100)
         plt.show()
     
 
